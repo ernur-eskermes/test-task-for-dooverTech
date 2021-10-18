@@ -1,0 +1,64 @@
+version: '3.9'
+
+services:
+  db:
+    container_name: dt_postgres
+    image: postgres:13-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+     - POSTGRES_USER=postgres
+     - POSTGRES_PASSWORD=postgres
+     - POSTGRES_DB=postgres
+    restart: on-failure
+  redis:
+    container_name: dt_redis
+    image: redis
+    ports:
+     - "6379:6379"
+    restart: on-failure
+    volumes:
+      - redis_data:/data
+  web:
+    build: .
+    command: sh -c "python manage.py runserver 0.0.0.0:8000"
+    container_name: dt_web
+    volumes:
+      - .:/home/app/web
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./.env
+    depends_on:
+      - db
+      - redis
+    restart: on-failure
+  celery:
+    container_name: dt_celery
+    build: .
+    command: ['celery', '-A', 'config', 'worker', '-l', 'info']
+    env_file:
+      - ./.env
+    volumes:
+      - .:/home/app/web
+    depends_on:
+      - redis
+      - db
+      - web
+    restart: on-failure
+  celery_scheduler:
+    container_name: dt_celery_scheduler
+    build: .
+    env_file:
+      - ./.env
+    volumes:
+      - .:/home/app/web
+    depends_on:
+      - redis
+      - db
+      - web
+    command: ['celery', '-A', 'config', 'beat', '-l', 'info']
+    restart: on-failure
+volumes:
+  postgres_data:
+  redis_data:
